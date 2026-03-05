@@ -224,6 +224,15 @@
         // Event listener for regex input
         regexInput.addEventListener('input', scheduleRegexMatch);
 
+        // Event listener for forward slash key to focus input
+        document.addEventListener('keydown', function(event) {
+            if (event.key === '/' && event.target !== regexInput) {
+                event.preventDefault();
+                regexInput.focus();
+                regexInput.select();
+            }
+        });
+
         // Load words on page load
         loadWords();
     </script>
