@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Regex Dictionary</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .input-section {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 40px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            max-width: 500px;
+            padding: 12px 16px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            border-color: #4a90e2;
+        }
+
+        .progress-container {
+            display: none;
+            justify-content: center;
+            margin-bottom: 20px;
+            opacity: 0.6;
+        }
+
+        .progress-container.visible {
+            display: flex;
+        }
+
+        .progress-bar {
+            width: 100%;
+            max-width: 500px;
+            height: 3px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #4a90e2;
+            animation: pulse 1.2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 0.6;
+            }
+            50% {
+                opacity: 1;
+            }
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            padding: 0 20px;
+        }
+
+        .word-item {
+            /* minimal spacing, larger text, no panels */
+            padding: 2px 4px;
+            font-size: 18px;
+            word-break: break-word;
+        }
+
+        .word-item:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 1200px) {
+            .results-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .results-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 500px) {
+            .results-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="input-section">
+            <input type="text" id="regexInput" placeholder="Enter a regular expression...">
+        </div>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+        </div>
+
+        <div class="results-grid" id="resultsGrid"></div>
+    </div>
+
+    <script>
+        const PROGRESS_TIMEOUT = 150; // ms
+        const MAX_RESULTS_TO_DISPLAY = 1000; // Limit results for performance
+
+        let words = [];
+        let loadingStartTime = 0;
+        let progressTimeoutId = null;
+        let rafId = null;
+        let pendingRegex = null;
+
+        const regexInput = document.getElementById('regexInput');
+        const progressContainer = document.getElementById('progressContainer');
+        const resultsGrid = document.getElementById('resultsGrid');
+
+        // Load words from file
+        async function loadWords() {
+            loadingStartTime = Date.now();
+
+            // Set up progress bar timeout
+            progressTimeoutId = setTimeout(() => {
+                progressContainer.classList.add('visible');
+            }, PROGRESS_TIMEOUT);
+
+            try {
+                const response = await fetch('words.txt');
+                const text = await response.text();
+                words = text.split('\n').filter(w => w.trim().length > 0);
+
+                // Clear progress bar
+                clearTimeout(progressTimeoutId);
+                progressContainer.classList.remove('visible');
+            } catch (error) {
+                console.error('Failed to load words:', error);
+                clearTimeout(progressTimeoutId);
+                progressContainer.classList.remove('visible');
+            }
+
+            // Auto-focus input after words are loaded
+            regexInput.focus();
+        }
+
+        // Debounced regex matching with requestAnimationFrame
+        function scheduleRegexMatch() {
+            if (rafId) {
+                cancelAnimationFrame(rafId);
+            }
+            rafId = requestAnimationFrame(updateResults);
+        }
+
+        function updateResults() {
+            rafId = null;
+            const pattern = regexInput.value.trim();
+
+            if (!pattern) {
+                resultsGrid.innerHTML = '';
+                return;
+            }
+
+            let regex;
+            try {
+                regex = new RegExp(pattern);
+            } catch (e) {
+                // Invalid regex - silently fail
+                resultsGrid.innerHTML = '';
+                return;
+            }
+
+            // Filter words matching the regex
+            const matches = words.filter(word => {
+                try {
+                    return regex.test(word);
+                } catch (e) {
+                    return false;
+                }
+            }).slice(0, MAX_RESULTS_TO_DISPLAY);
+
+            // Render results
+            resultsGrid.innerHTML = matches
+                .map(word => `<div class="word-item">${escapeHtml(word)}</div>`)
+                .join('');
+        }
+
+        // Escape HTML to prevent injection
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // Event listener for regex input
+        regexInput.addEventListener('input', scheduleRegexMatch);
+
+        // Load words on page load
+        loadWords();
+    </script>
+</body>
+</html>
